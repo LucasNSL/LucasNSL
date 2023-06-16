@@ -1,0 +1,125 @@
+// Incluindo bibliotecas necessárias
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define DHTPIN D4
+#define DHTTYPE DHT11
+#define SOILPIN A0        // Pino de dados do sensor de umidade do solo
+#define LCD_ADDRESS 0x27  // Endereço I2C do LCD 16x2
+#define LCD_ROWS 2        // Número de linhas do LCD
+#define LCD_COLS 16       // Número de colunas do LCD
+#define RELAY_PIN D6
+
+// Inicializando objetos e variáveis
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(LCD_ADDRESS, LCD_COLS, LCD_ROWS);
+const int pinoSensor = A0;  // Pino lógico utilizado pelo sensor
+int valorLido;              // Variável que armazena o percentual de umidade do solo
+int valormax ;             // Variável que armazena do valor maximo de umidade do solo
+int valormin ;             // Variável que armazena do valor minimo de umidade do solo
+int tiposolo;               // Variável que armazena para o tipo de solo
+
+char auth[] = "VIS5GxZ-HL0rkpzmlWtChDVdEBEBYhtF"; //Codigo de autenticaçõ fornecido pelo Blynk
+char ssid[] = "TesteTcc";  //Nome da rede Wi-fi
+char pass[] = "12345678910";  //Senha da rede Wifi
+
+const int rele_pin = D6;  //Definição do pino de rele para a ativação do sistema de irrigação
+
+// Função chamada quando o valor do Widget V6 é atualizado no aplicativo Blynk
+BLYNK_WRITE(V6) { // Atualiza o valor da variável com o valor recebido do aplicativo
+  int novoValor = param.asInt();
+  tiposolo = novoValor;
+}
+
+// Função para enviar o valor de tiposolo para o Widget V6
+void enviarValor() {
+  Blynk.virtualWrite(V6, tiposolo);  // Envia o valor para o Widget do tipo Value Display
+}
+
+void setup() {
+  Serial.begin(9600);
+  Blynk.begin(auth, ssid, pass);
+  lcd.init();
+  lcd.backlight();
+  dht.begin();
+  pinMode(RELAY_PIN, OUTPUT);
+}
+
+void loop() {
+  float h = dht.readHumidity();   //Paramentro para a leitura da umidade
+  float t = dht.readTemperature();  //Paramentro para a leitura da temperatura
+  valorLido = analogRead(pinoSensor);  //Paramentro para a leitura da umidade do solo
+  valorLido = map(valorLido, 400, 1022, 100, 0);  //Mapeamento dos valore analogico para digital
+  
+  lcd.clear();          // Limpa o display LCD
+  lcd.setCursor(0, 0);  // Posiciona o cursor na primeira linha e primeira coluna
+  lcd.print("Temperatura: ");  // Imprime o texto no display LCD
+  lcd.print(t);   // Imprime a temperatura no display LCD
+  lcd.print(" C");  // Imprime o texto no display LCD
+  lcd.setCursor(0, 1);  // Posiciona o cursor na segunda linha e primeira coluna
+  lcd.print("Umidade: ");  // Imprime o texto no display LCD
+  lcd.print(h);  // Imprime a umidade no display LCD
+  lcd.print(" %");  // Imprime o texto no display LCD
+  delay(3000);  // Tempo de espera ate que seja executado novamente
+  
+  if (tiposolo == 0) {  //Condição para o tipo de solo
+    valormax = 70;  //Definição do valor maximo de umidade de acordo com a condiçao escolhida
+    valormin = 60;  //Definição do valor minimo de umidade de acordo com a condiçao escolhida
+    lcd.clear();  // Limpa o display LCD
+    lcd.setCursor(0, 0);  // Posiciona o cursor na primeira linha e primeira coluna
+    lcd.print("Solo: Argilosos");  // Imprime o texto no display LCD
+    lcd.setCursor(0, 1);  // Posiciona o cursor na segunda linha e primeira coluna
+    lcd.print("Umid: ");  // Imprime o texto no display LCD
+    lcd.print(valormin);  // Imprime o valor de umidade minima no display LCD
+    lcd.print("% <");  // Imprime o texto no display LCD
+    lcd.print(valormax); // Imprime o valor de umidade maxima no display LCD
+    lcd.print("%");  // Imprime o texto no display LCD
+    delay(3000);
+  } else if (tiposolo == 1) { //Condição para o tipo de solo
+    valormax = 80; //Definição do valor maximo de umidade de acordo com a condiçao escolhida
+    valormin = 60;  //Definição do valor minimo de umidade de acordo com a condiçao escolhida
+    lcd.clear();  // Limpa o display LCD
+    lcd.setCursor(0, 0);  // Posiciona o cursor na primeira linha e primeira coluna
+    lcd.print("Solo: Arenosos");  // Imprime o texto no display LCD
+    lcd.setCursor(0, 1);  // Posiciona o cursor na segunda linha e primeira coluna
+    lcd.print("Umid: ");  // Imprime o texto no display LCD
+    lcd.print(valormin);  // Imprime o valor de umidade minima no display LCD
+    lcd.print("% <");  // Imprime o texto no display LCD
+    lcd.print(valormax); // Imprime o valor de umidade maxima no display LCD
+    lcd.print("%");  // Imprime o texto no display LCD
+    delay(3000); // Tempo de espera ate que seja executado novamente
+  }
+  
+  Serial.print("Umidade do solo: ");  // Imprime o texto no monitor serial
+  Serial.print(valorLido);            // Imprime no monitor serial o percentual de umidade do solo
+  Serial.println("%");                // Imprime o caractere no monitor serial
+  Serial.print("Humidity: ");  // Imprime o texto no monitor serial
+  Serial.print(h);   // Imprime a umidade no monitor serial
+  Serial.print(" %\t");  // Imprime o texto no monitor serial
+  Serial.print("Temperature: ");  // Imprime o texto no monitor serial
+  Serial.print(t);  // Imprime a temperatura no monitor serial
+  Serial.println(" *C");  // Imprime o texto no monitor serial
+  Serial.println(valormax);  // Imprime o valor maximo da umidade do solo no monitor serial
+  Serial.println(valormin);   // Imprime o valor maximo da umidade do solo no monitor serial
+  Serial.println(tiposolo);  // Imprime o tipo de solo definido pelo usuario 
+
+  if (valorLido > valormax) {                     // Verifica se a umidade é maior que o valor máximo definido
+    digitalWrite(RELAY_PIN, HIGH);                // Ativa o relé
+    Serial.println("Umidade acima do limite!");   // Imprime uma mensagem de aviso na porta serial
+  } else if (valorLido < valormin) {              // Verifica se a umidade é menor que o valor mínimo definido
+    digitalWrite(RELAY_PIN, LOW);                 // Desativa o relé
+    Serial.println("Umidade abaixo do limite!");  // Imprime uma mensagem de aviso na porta serial
+  } else {
+    digitalWrite(RELAY_PIN, LOW);  // Desativa o relé
+  }
+  
+  Blynk.virtualWrite(V1, t);   //Retorno do valor da temperatura para a aplicação
+  Blynk.virtualWrite(V2, h);  //Retorno do valor da umidade para a aplicação
+  Blynk.virtualWrite(V3, valorLido);  //Retorno do valor da umidade do solo para a aplicação
+  Blynk.virtualWrite(V4, valormax);  //Retorno do valor de umidade maxima do solopara a aplicação
+  Blynk.virtualWrite(V5, valormin);  //Retorno do valor de umidade minima do solo para a aplicação
+}
